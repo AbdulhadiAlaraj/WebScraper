@@ -84,10 +84,10 @@ class WebScraper:
 
 if __name__ == "__main__":
     config = {
-        "url": "https://python.langchain.com/docs/get_started/introduction",
-        "match": "https://python.langchain.com/docs/*",
-        "selector": ".docItemContainer_Djhp",
-        "maxPagesToCrawl": 300,
+        "url": "https://example.com",  # Replace with your starting URL
+        "match": "https://example.com/docs/*",  # Replace with your URL match pattern
+        "selector": ".content",  # Replace with your CSS selector
+        "maxPagesToCrawl": 50,
         "outputFileName": "output.json",
     }
 
