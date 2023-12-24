@@ -1,9 +1,10 @@
 import re
 import json
 import requests
+import urllib.robotparser
+import time
 from urllib.parse import urljoin, urlparse, urlunparse
 from bs4 import BeautifulSoup
-
 
 class WebScraper:
     def __init__(self, config):
@@ -13,6 +14,8 @@ class WebScraper:
         self.max_pages = config["maxPagesToCrawl"]
         self.output_file = config["outputFileName"]
         self.visited = set()
+        self.robot_parser = urllib.robotparser.RobotFileParser()
+        self.fetch_robots_txt()
 
     def fetch_url(self, url):
         try:
@@ -23,14 +26,20 @@ class WebScraper:
             print(f"Request failed: {e}")
             return None
 
-    def parse_links(self, html, base_url):
-        soup = BeautifulSoup(html, 'lxml')
-        for link in soup.find_all('a', href=True):
-            href = link['href']
-            if re.match(self.match_pattern, href) or re.match(self.match_pattern, urljoin(base_url, href)):
-                full_url = urljoin(base_url, href)
-                if full_url not in self.visited:
-                    yield full_url
+    def fetch_robots_txt(self):
+        """Fetch and parse the robots.txt file."""
+        self.robot_parser.set_url(urljoin(self.start_url, "/robots.txt"))
+        self.robot_parser.read()
+
+    def can_fetch(self, url):
+        """Check if the URL can be fetched according to robots.txt."""
+        return self.robot_parser.can_fetch("*", url)
+
+    def respect_crawl_delay(self):
+        """Respect the crawl delay specified in robots.txt."""
+        crawl_delay = self.robot_parser.crawl_delay("*")
+        if crawl_delay:
+            time.sleep(crawl_delay)
 
     def normalize_url(self, url):
         """Normalize the URL by removing the fragment."""
@@ -53,8 +62,10 @@ class WebScraper:
         while pages_to_visit and len(self.visited) < self.max_pages:
             url = pages_to_visit.pop(0)
             normalized_url = self.normalize_url(url)
-            if normalized_url in self.visited:
+            if normalized_url in self.visited or not self.can_fetch(normalized_url):
                 continue
+
+            self.respect_crawl_delay()  # Respect crawl delay if specified
 
             print(f"Scraping {normalized_url}")
             self.visited.add(normalized_url)
@@ -69,9 +80,8 @@ class WebScraper:
                 results.append({
                     "title": title,
                     "url": url,
-                    "html": text_content  # Changed 'content' to 'text_content'
+                    "text_content": text_content
                 })
-
 
                 links = self.parse_links(html, url)
                 pages_to_visit.extend(links)
@@ -80,7 +90,6 @@ class WebScraper:
             json.dump(results, f, ensure_ascii=False, indent=4)
 
         print(f"Scraping complete. Data written to {self.output_file}")
-
 
 if __name__ == "__main__":
     config = {
